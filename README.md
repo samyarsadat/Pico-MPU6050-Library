@@ -2,7 +2,6 @@
 
 This project contains a stand-alone library for the Raspberry Pi Pico SDK, written in C. The library is made for the MPU6050 sensor from InvenSense. You have to download and setup the library to have it work properly.
 
-![MPU6050](https://www.robotshop.com/media/catalog/product/cache/image/900x900/9df78eab33525d08d6e5fb8d27136e95/m/p/mpu-6050-6-dof-gyro-accelerometer-imu_1.jpg)
 
 # Repository Contents
 
