@@ -461,6 +461,17 @@ extern "C"
      */
     void mpu6050_set_free_fall_detection_duration(struct mpu6050 *self, uint8_t duration);
 
+    /**
+     * @brief Accelerometer and gyroscope self-test;
+     * checks calibration with reference to factory settings.
+     * 
+     * +/- 14 percent or less deviation is a pass.
+     * 
+     * @param mpu6050_t* self: Reference to itself 
+     * @param float* results: Self-test result deviation from factory trims as percentages
+     */
+    void mpu6050_self_test(struct mpu6050 *self, float *results);
+
 #ifdef __cplusplus
 }
 #endif

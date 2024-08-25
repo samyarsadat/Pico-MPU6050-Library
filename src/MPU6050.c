@@ -14,6 +14,10 @@
 #define GYRO_YOFFS_L 0x16
 #define GYRO_ZOFFS_H 0x17
 #define GYRO_ZOFFS_L 0x18
+#define SELF_TEST_X 0x0D
+#define SELF_TEST_Y 0x0E    
+#define SELF_TEST_Z 0x0F
+#define SELF_TEST_A 0x10
 #define CONFIG 0x1A
 #define GYRO_CONFIG 0x1B  // Gyroscope Configuration
 #define ACCEL_CONFIG 0x1C // Accelerometer Configuration
@@ -595,4 +599,60 @@ void mpu6050_set_free_fall_detection_duration(struct mpu6050 *self, uint8_t dura
 {
     uint8_t data[2] = {FF_DURATION, duration};
     i2c_write_blocking(self->i2c.instance, self->i2c.address, data, 2, false);
+}
+
+void mpu6050_self_test(struct mpu6050 *self, float *results)
+{
+    /* 
+        THIS IMPLEMENTATION IS NOT CORRECT!
+        It was ported over from https://github.com/kriswiner/MPU6050/blob/master/MPU6050BasicExample.ino,
+        and does not match the specification outlined in the documentation for the MPU6050.
+        This will be reworked. 
+    */
+
+    uint8_t raw_data[4];
+    uint8_t self_test_res[6];
+    float factory_trims[6];
+    
+    uint8_t en_accel_st[2] = {ACCEL_CONFIG, 0xF0};
+    uint8_t en_gyro_st[2] = {GYRO_CONFIG, 0xE0};
+    i2c_write_blocking(self->i2c.instance, self->i2c.address, en_accel_st, 2, false);
+    i2c_write_blocking(self->i2c.instance, self->i2c.address, en_gyro_st, 2, false);
+    
+    sleep_ms(250);
+    
+    i2c_read_reg(&self->i2c, SELF_TEST_X, &raw_data[0], 1);
+    i2c_read_reg(&self->i2c, SELF_TEST_Y, &raw_data[1], 1);
+    i2c_read_reg(&self->i2c, SELF_TEST_Z, &raw_data[2], 1);
+    i2c_read_reg(&self->i2c, SELF_TEST_A, &raw_data[3], 1);
+    
+    self_test_res[0] = (raw_data[0] >> 3) | (raw_data[3] & 0x30) >> 4;
+    self_test_res[1] = (raw_data[1] >> 3) | (raw_data[3] & 0x0C) >> 2;
+    self_test_res[2] = (raw_data[2] >> 3) | (raw_data[3] & 0x03) >> 0;
+    
+    self_test_res[3] = raw_data[0] & 0x1F;
+    self_test_res[4] = raw_data[1] & 0x1F;
+    self_test_res[5] = raw_data[2] & 0x1F;
+    
+    factory_trims[0] = (4096.0 * 0.34) * (pow((0.92 / 0.34), (((float) self_test_res[0] - 1.0) / 30.0)));
+    factory_trims[1] = (4096.0 * 0.34) * (pow((0.92 / 0.34), (((float) self_test_res[1] - 1.0) / 30.0)));
+    factory_trims[2] = (4096.0 * 0.34) * (pow((0.92 / 0.34), (((float) self_test_res[2] - 1.0) / 30.0)));
+    factory_trims[3] = (25.0 * 131.0) * (pow(1.046, ((float) self_test_res[3] - 1.0)));
+    factory_trims[4] = (-25.0 * 131.0) * (pow(1.046, ((float) self_test_res[4] - 1.0)));
+    factory_trims[5] = (25.0 * 131.0) * (pow(1.046, ((float) self_test_res[5] - 1.0)));
+
+    for (int i = 0; i < 6; i++) 
+    {
+        results[i] = 100.0 + 100.0 * ((float) self_test_res[i] - factory_trims[i]) / factory_trims[i];
+    }
+
+    uint8_t gyro_c_conf;
+    uint8_t accel_c_conf;
+    i2c_read_reg(&self->i2c, GYRO_CONFIG, &gyro_c_conf, 1);
+    i2c_read_reg(&self->i2c, ACCEL_CONFIG, &accel_c_conf, 1);
+
+    uint8_t gyro_n_conf[2] = {GYRO_CONFIG, gyro_c_conf & ~0xE0};
+    uint8_t accel_n_conf[2] = {ACCEL_CONFIG, accel_c_conf & ~0xE0};
+    i2c_write_blocking(self->i2c.instance, self->i2c.address, gyro_n_conf, 2, false);
+    i2c_write_blocking(self->i2c.instance, self->i2c.address, accel_n_conf, 2, false);
 }
